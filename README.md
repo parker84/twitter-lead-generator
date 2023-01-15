@@ -1,5 +1,5 @@
 # twitter-lead-generator
-Repo to build a dashboard which helps generate leads from twitter by enabling you to **lookup and download to csv** a user's:
-1. **Followers** (ex: if you want to find and reach out to everyone who is following a specific user)
-2. **Following** (ex: if you want to find and reach out to everyone who a specific user is following)
-3. **Tweets** (ex: if you want to lookup and download tweets from a user to get a pulse on their engagement)
+This repo contains the code to build this twitter lead generator: https://twitter-lead-generator.streamlit.app/
+
+<img width="1605" alt="image" src="https://user-images.githubusercontent.com/12496987/212563332-2babcd0c-4fcb-4701-be0e-680a1233745b.png">
+
