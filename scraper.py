@@ -74,8 +74,8 @@ def clean_user_df(in_df):
     out_df.drop('entities', axis=1, inplace=True)
     out_df = out_df[[
         'username',  'followers_count', 'following_count',
-        'tweet_count', 'listed_count', 'url', 
-        'name', 'description', 'location', 
+        'description', 'name', 'location', 'url', 
+        'tweet_count', 'listed_count',
         'link_in_bio', 'link_in_description',
         'id', 'verified', 'created_at', 'profile_image_url',
         'pinned_tweet_id', 'protected', 'scraped_at',
