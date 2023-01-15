@@ -1,5 +1,4 @@
 import streamlit as st
-from decouple import config
 from PIL import Image
 from scraper import Scraper
 
