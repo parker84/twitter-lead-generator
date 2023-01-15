@@ -66,17 +66,37 @@ class Scraper():
         user_meta_data_df['scraped_at'] = str(datetime.now())
         return clean_df(user_meta_data_df)
 
+    def scrape_followings_for_user(self):
+        hundo_followings = self._scrape_100_followings_for_user()
+        raw_users_followings = pd.DataFrame(hundo_followings['data'])
+        while True:
+            if "next_token" not in hundo_followings["meta"]:
+                break
+            else:
+                next_token = hundo_followings["meta"]["next_token"]
+                hundo_followings = self._scrape_100_followings_for_user(next_token)
+                raw_users_followings = raw_users_followings.append(
+                    pd.DataFrame(hundo_followings['data'])
+                )
+        users_followings = clean_df(raw_users_followings)
+        users_followings['scraped_at'] = str(datetime.now())
+        return users_followings
+
     def scrape_followers_for_user(self):
-        params = {
-            "user.fields": "created_at,description,public_metrics,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,url,username,verified,withheld"
-        }
-        url = f"https://api.twitter.com/2/users/{self.user_id}/followers"
-        json_response = connect_to_endpoint(url, params)
-        raw_users_followers_df = pd.DataFrame(json_response['data'])
-        users_followers_df = clean_df(raw_users_followers_df)
-        users_followers_df['author_user_id'] = self.user_id
-        users_followers_df['row_created_at'] = str(datetime.now())
-        return users_followers_df
+        hundo_followers = self._scrape_100_followers_for_user()
+        raw_users_followers = pd.DataFrame(hundo_followers['data'])
+        while True:
+            if "next_token" not in hundo_followers["meta"]:
+                break
+            else:
+                next_token = hundo_followers["meta"]["next_token"]
+                hundo_followers = self._scrape_100_followers_for_user(next_token)
+                raw_users_followers = raw_users_followers.append(
+                    pd.DataFrame(hundo_followers['data'])
+                )
+        users_followers = clean_df(raw_users_followers)
+        users_followers['scraped_at'] = str(datetime.now())
+        return users_followers
 
     def scrape_user_timeline(self, last_n_hundred_tweets=1) -> pd.DataFrame:
         hundo_tweets = self._get_100_tweets_from_user()
@@ -94,7 +114,7 @@ class Scraper():
         user_timeline_df['row_created_at'] = str(datetime.now())
         return user_timeline_df
 
-    def _get_100_tweets_from_user(self, pagination_token=None):
+    def _get_100_tweets_from_user(self, pagination_token=None) -> dict:
         url = "https://api.twitter.com/2/users/{}/tweets".format(self.user_id)
         params = {
             "tweet.fields": "attachments,author_id,context_annotations,created_at,entities,id,in_reply_to_user_id,lang,possibly_sensitive,public_metrics,referenced_tweets,source,text,withheld",            "max_results": 100,
@@ -105,8 +125,28 @@ class Scraper():
         json_response = connect_to_endpoint(url, params)
         return json_response
     
+    def _scrape_100_followers_for_user(self, pagination_token=None) -> dict:
+        params = {
+            "user.fields": "created_at,description,public_metrics,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,url,username,verified,withheld",
+            "pagination_token": pagination_token
+        }
+        url = f"https://api.twitter.com/2/users/{self.user_id}/followers"
+        json_response = connect_to_endpoint(url, params)
+        return json_response
+    
+    def _scrape_100_followings_for_user(self, pagination_token=None) -> dict:
+        params = {
+            "user.fields": "created_at,description,public_metrics,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,url,username,verified,withheld",
+            "pagination_token": pagination_token
+        }
+        url = f"https://api.twitter.com/2/users/{self.user_id}/following"
+        json_response = connect_to_endpoint(url, params)
+        return json_response
+    
 if __name__ == '__main__':
     scraper = Scraper('parker_brydon')
     user_meta_data = scraper.scrape_user_meta_data()
     user_timeline = scraper.scrape_user_timeline(last_n_hundred_tweets=2)
     user_followers = scraper.scrape_followers_for_user()
+    user_followings = scraper.scrape_followings_for_user()
+    import ipdb; ipdb.set_trace()
