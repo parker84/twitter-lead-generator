@@ -3,6 +3,7 @@ import coloredlogs, logging
 import time
 import requests
 import pandas as pd
+from tqdm import tqdm
 import json
 from datetime import datetime
 logger = logging.getLogger(__name__)
@@ -46,17 +47,66 @@ def clean_df(in_df):
             out_df[col] = out_df[col].astype(str)
     return out_df
 
-def scrape_user_meta_data(user_id):
-    params = {
-        "user.fields": "created_at,description,public_metrics,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,url,username,verified,withheld"
-    }
-    url = f"https://api.twitter.com/2/users?ids={user_id}"
-    json_response = connect_to_endpoint(url, params)
-    user_meta_data_df = pd.DataFrame(json_response['data'])
-    user_meta_data_df['scraped_at'] = str(datetime.now())
-    return clean_df(user_meta_data_df)
+class Scraper():
+
+    def __init__(self, user_name, start_time=None, end_time=None) -> None:
+        self.user_name = user_name
+        self.start_time = start_time
+        self.end_time = end_time
+        logger.info(f'Getting user_id for {user_name}')
+        self.user_id = get_user_id_from_user_name(user_name)
+
+    def scrape_user_meta_data(self):
+        params = {
+            "user.fields": "created_at,description,public_metrics,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,url,username,verified,withheld"
+        }
+        url = f"https://api.twitter.com/2/users?ids={self.user_id}"
+        json_response = connect_to_endpoint(url, params)
+        user_meta_data_df = pd.DataFrame(json_response['data'])
+        user_meta_data_df['scraped_at'] = str(datetime.now())
+        return clean_df(user_meta_data_df)
+
+    def scrape_followers_for_user(self):
+        params = {
+            "user.fields": "created_at,description,public_metrics,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,url,username,verified,withheld"
+        }
+        url = f"https://api.twitter.com/2/users/{self.user_id}/followers"
+        json_response = connect_to_endpoint(url, params)
+        raw_users_followers_df = pd.DataFrame(json_response['data'])
+        users_followers_df = clean_df(raw_users_followers_df)
+        users_followers_df['author_user_id'] = self.user_id
+        users_followers_df['row_created_at'] = str(datetime.now())
+        return users_followers_df
+
+    def scrape_user_timeline(self, last_n_hundred_tweets=1) -> pd.DataFrame:
+        hundo_tweets = self._get_100_tweets_from_user()
+        raw_user_timeline_df = pd.DataFrame(hundo_tweets['data'])
+        for i in tqdm(range(last_n_hundred_tweets-1)):
+            if "next_token" not in hundo_tweets["meta"]:
+                break
+            else:
+                next_token = hundo_tweets["meta"]["next_token"]
+                hundo_tweets = self._get_100_tweets_from_user(next_token)
+                raw_user_timeline_df = raw_user_timeline_df.append(
+                    pd.DataFrame(hundo_tweets['data'])
+                )
+        user_timeline_df = clean_df(raw_user_timeline_df)
+        user_timeline_df['row_created_at'] = str(datetime.now())
+        return user_timeline_df
+
+    def _get_100_tweets_from_user(self, pagination_token=None):
+        url = "https://api.twitter.com/2/users/{}/tweets".format(self.user_id)
+        params = {
+            "tweet.fields": "attachments,author_id,context_annotations,created_at,entities,id,in_reply_to_user_id,lang,possibly_sensitive,public_metrics,referenced_tweets,source,text,withheld",            "max_results": 100,
+            "pagination_token": pagination_token,
+            "start_time": self.start_time,
+            "end_time": self.end_time
+        }
+        json_response = connect_to_endpoint(url, params)
+        return json_response
     
 if __name__ == '__main__':
-    user_id = get_user_id_from_user_name('parker_brydon')
-    user_meta_data_df = scrape_user_meta_data(user_id)
-    import ipdb; ipdb.set_trace()
+    scraper = Scraper('parker_brydon')
+    user_meta_data = scraper.scrape_user_meta_data()
+    user_timeline = scraper.scrape_user_timeline(last_n_hundred_tweets=2)
+    user_followers = scraper.scrape_followers_for_user()
