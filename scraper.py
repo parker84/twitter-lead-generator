@@ -2,6 +2,7 @@ from decouple import config
 import coloredlogs, logging
 import time
 import requests
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import json
@@ -45,7 +46,42 @@ def clean_df(in_df):
             out_df[col] = out_df[col].apply(json.dumps).astype(str)
         else:
             out_df[col] = out_df[col].astype(str)
+    out_df.reset_index(inplace=True, drop=True)
     return out_df
+
+def clean_user_df(in_df):
+    out_df = in_df.copy()
+    for metric in ['followers_count', 'following_count', 'tweet_count', 'listed_count']:
+        out_df[metric] = [
+            eval(row['public_metrics'])[metric]
+            for ix, row in out_df.iterrows()
+        ]
+    out_df.drop('public_metrics', axis=1, inplace=True)
+    links_in_bio = []
+    for ix, row in out_df.iterrows():
+        try:
+            links_in_bio.append(eval(row['entities'])['url']['urls'][0]['expanded_url'])
+        except Exception as err:
+            links_in_bio.append(np.nan)
+    out_df['link_in_bio'] = links_in_bio
+    links_in_description = []
+    for ix, row in out_df.iterrows():
+        try:
+            links_in_description.append(eval(row['entities'])['description']['urls'][0]['expanded_url'])
+        except Exception as err:
+            links_in_description.append(np.nan)
+    out_df['link_in_description'] = links_in_description
+    out_df.drop('entities', axis=1, inplace=True)
+    out_df = out_df[[
+        'username',  'followers_count', 'following_count',
+        'tweet_count', 'listed_count', 'url', 
+        'name', 'description', 'location', 
+        'link_in_bio', 'link_in_description',
+        'id', 'verified', 'created_at', 'profile_image_url',
+        'pinned_tweet_id', 'protected', 'scraped_at',
+    ]]
+    return out_df
+    
 
 class Scraper():
 
@@ -80,6 +116,7 @@ class Scraper():
                 )
         users_followings = clean_df(raw_users_followings)
         users_followings['scraped_at'] = str(datetime.now())
+        users_followings = clean_user_df(users_followings)
         return users_followings
 
     def scrape_followers_for_user(self):
@@ -96,9 +133,10 @@ class Scraper():
                 )
         users_followers = clean_df(raw_users_followers)
         users_followers['scraped_at'] = str(datetime.now())
+        users_followers = clean_user_df(users_followers)
         return users_followers
 
-    def scrape_user_timeline(self, last_n_hundred_tweets=1) -> pd.DataFrame:
+    def scrape_tweets_for_user(self, last_n_hundred_tweets=1) -> pd.DataFrame:
         hundo_tweets = self._get_100_tweets_from_user()
         raw_user_timeline_df = pd.DataFrame(hundo_tweets['data'])
         for i in tqdm(range(last_n_hundred_tweets-1)):
@@ -146,7 +184,7 @@ class Scraper():
 if __name__ == '__main__':
     scraper = Scraper('parker_brydon')
     user_meta_data = scraper.scrape_user_meta_data()
-    user_timeline = scraper.scrape_user_timeline(last_n_hundred_tweets=2)
+    user_timeline = scraper.scrape_tweets_for_user(last_n_hundred_tweets=2)
     user_followers = scraper.scrape_followers_for_user()
     user_followings = scraper.scrape_followings_for_user()
     import ipdb; ipdb.set_trace()
