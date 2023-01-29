@@ -1,6 +1,6 @@
 import streamlit as st
 from PIL import Image
-from scraper import Scraper
+from scraper import Scraper, scrape_metrics_for_last_hundred_tweets_for_users
 
 # ----helpers
 @st.experimental_memo
@@ -32,6 +32,10 @@ with st.form("my_form"):
     username = username.strip('@')
     get_following = st.checkbox("Get Who They're Following", True)
     get_followers = st.checkbox("Get Their Followers")
+    get_engagement_metrics = st.checkbox('Get Engagment Metrics per User')
+    min_follower_count_to_get_engagement_metrics = st.slider('Min Follower Count for Engagement Metrics', min_value=0, max_value=100000, step=1000)
+    if min_follower_count_to_get_engagement_metrics > 0 and get_engagement_metrics == False:
+        st.warning(f"You've indicated a min follower count ({min_follower_count_to_get_engagement_metrics}), but you haven't checked off the box to get engagement metrics, so we no engagement metrics will be added. If you want them added, please check the Engagement Metrics box.")
     get_tweets = st.checkbox("Get Their Tweets")
 
     # Every form must have a submit button.
@@ -49,6 +53,12 @@ if submitted:
         st.markdown('## 🔭 Following')
         with st.spinner(text=f"Scraping who `{username}` is following"):
             followings_df = scraper.scrape_followings_for_user()
+        if get_engagement_metrics:
+            with st.spinner(text=f"Scraping engagement metrics for followings, with follower counts >= {min_follower_count_to_get_engagement_metrics}"):
+                metrics_df = scrape_metrics_for_last_hundred_tweets_for_users(
+                    followings_df[followings_df.followers_count >= min_follower_count_to_get_engagement_metrics]
+                )
+                followings_df = followings_df.merge(metrics_df, on='username', how='left')
         st.dataframe(followings_df)
 
         csv = convert_df(followings_df)
@@ -63,6 +73,12 @@ if submitted:
         st.markdown('## 🔬 Followers')
         with st.spinner(text=f"Scraping `{username}`'s followers"):
             followers_df = scraper.scrape_followers_for_user()
+        if get_engagement_metrics:
+            with st.spinner(text=f"Scraping engagement metrics_df for followers, with follower counts >= {min_follower_count_to_get_engagement_metrics}"):
+                metrics_df = scrape_metrics_for_last_hundred_tweets_for_users(
+                    followers_df[followers_df.followers_count >= min_follower_count_to_get_engagement_metrics]
+                )
+                followers_df = followers_df.merge(metrics_df, on='username', how='left')
         st.dataframe(followers_df)
 
         csv = convert_df(followers_df)

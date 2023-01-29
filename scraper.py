@@ -72,25 +72,74 @@ def clean_user_df(in_df):
             links_in_description.append(np.nan)
     out_df['link_in_description'] = links_in_description
     out_df.drop('entities', axis=1, inplace=True)
+    out_df['user_id'] = out_df['id']
+    out_df.reset_index(inplace=True, drop=True)
     out_df = out_df[[
         'username',  'followers_count', 'following_count',
-        'description', 'name', 'location', 'url', 
+        'description', 'name', 'location', 'link_in_bio', 
         'tweet_count', 'listed_count',
-        'link_in_bio', 'link_in_description',
-        'id', 'verified', 'created_at', 'profile_image_url',
-        'pinned_tweet_id', 'protected', 'scraped_at',
+        'url', 'link_in_description',
+        'user_id', 'verified', 'created_at', 'profile_image_url',
+        'pinned_tweet_id', 'protected', 'scraped_at'
     ]]
     return out_df
-    
+
+def clean_tweet_df(in_df):
+    out_df = in_df.copy()
+    for metric in ['retweet_count', 'reply_count', 'like_count', 'quote_count', 'impression_count']:
+        out_df[metric] = [
+            eval(row['public_metrics'])[metric]
+            for ix, row in out_df.iterrows()
+        ]
+    out_cols = [
+        'text', 'author_id', 'id', 'created_at',
+        'retweet_count', 'reply_count', 'like_count', 'quote_count', 'impression_count',
+        'edit_history_tweet_ids',
+        'referenced_tweets', 'lang', 'possibly_sensitive',
+        'entities', 'public_metrics', 'in_reply_to_user_id',
+        'context_annotations', 'attachments', 'row_created_at'
+    ]
+    for col in out_cols:
+        if col not in out_df.columns:
+            out_df[col] = None
+    out_df = out_df[out_cols]
+    return out_df
+
+def scrape_metrics_for_last_hundred_tweets_for_users(user_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Args:
+        user_df (pd.DataFrame): needs to have a 'user_id' column
+
+    Returns:
+        pd.DataFrame: one row per user w aggregated user metrics
+    """
+    logger.info("------scraping tweet metrics for users")
+    user_tweet_metrics = pd.DataFrame([])
+    for i in tqdm(range(user_df.shape[0])):
+        row = user_df.iloc[i]
+        scraper = Scraper(user_name=row['username'], user_id=row['user_id'])
+        tweets_df = scraper.scrape_tweets_for_user(last_n_hundred_tweets=1)
+        if tweets_df is not None:
+            tweets_df_no_rts = tweets_df[tweets_df.text.str.startswith('RT') == False]
+            tweet_summaries = tweets_df_no_rts[['retweet_count', 'reply_count', 'like_count', 'quote_count', 'impression_count']].mean()
+            tweet_summaries.index = ['average_' + ix for ix in tweet_summaries.index]
+            tweet_summaries['last_n_tweets'] = tweets_df_no_rts.shape[0]
+            tweet_summaries['username'] = row['username']
+            tweet_summaries['user_id'] = row['user_id']
+            user_tweet_metrics = pd.concat([user_tweet_metrics, pd.DataFrame([tweet_summaries])])
+    return user_tweet_metrics
 
 class Scraper():
 
-    def __init__(self, user_name, start_time=None, end_time=None) -> None:
+    def __init__(self, user_name, start_time=None, end_time=None, user_id=None) -> None:
         self.user_name = user_name
         self.start_time = start_time
         self.end_time = end_time
-        logger.info(f'Getting user_id for {user_name}')
-        self.user_id = get_user_id_from_user_name(user_name)
+        if user_id is None:
+            logger.info(f'Getting user_id for {user_name}')
+            self.user_id = get_user_id_from_user_name(user_name)
+        else:
+            self.user_id = user_id
 
     def scrape_user_meta_data(self):
         params = {
@@ -138,8 +187,11 @@ class Scraper():
 
     def scrape_tweets_for_user(self, last_n_hundred_tweets=1) -> pd.DataFrame:
         hundo_tweets = self._get_100_tweets_from_user()
+        if 'data' not in hundo_tweets:
+            logger.error(f'no data returned for tweets from user: {self.user_name}')
+            return None
         raw_user_timeline_df = pd.DataFrame(hundo_tweets['data'])
-        for i in tqdm(range(last_n_hundred_tweets-1)):
+        for i in range(last_n_hundred_tweets-1):
             if "next_token" not in hundo_tweets["meta"]:
                 break
             else:
@@ -150,6 +202,7 @@ class Scraper():
                 )
         user_timeline_df = clean_df(raw_user_timeline_df)
         user_timeline_df['row_created_at'] = str(datetime.now())
+        user_timeline_df = clean_tweet_df(user_timeline_df)
         return user_timeline_df
 
     def _get_100_tweets_from_user(self, pagination_token=None) -> dict:
@@ -187,4 +240,3 @@ if __name__ == '__main__':
     user_timeline = scraper.scrape_tweets_for_user(last_n_hundred_tweets=2)
     user_followers = scraper.scrape_followers_for_user()
     user_followings = scraper.scrape_followings_for_user()
-    import ipdb; ipdb.set_trace()
