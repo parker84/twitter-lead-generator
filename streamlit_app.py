@@ -9,7 +9,7 @@ def convert_df(df):
 
 
 
-st.set_page_config(page_icon='🦅', page_title='Twitter Lead Generator')
+st.set_page_config(page_icon='./assets/eagle_1f985.png', page_title='Twitter Lead Generator')
 
 st.markdown('## 🦅 Generate Leads from Twitter')
 col1, col2 = st.columns((2,1))
