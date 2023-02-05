@@ -165,7 +165,7 @@ class Scraper():
                 users_followers = clean_df(raw_users_followers)
                 users_followers['scraped_at'] = str(datetime.now())
                 users_followers = clean_user_df(users_followers)
-                users_followers.to_csv(f'./data/{self.user_name}_users_followers.csv')
+                users_followers.to_csv(f'./data/{self.user_name}_interim_users_followers.csv')
         return users_followers
 
     def scrape_tweets_for_user(self, last_n_hundred_tweets=1) -> pd.DataFrame:
@@ -248,7 +248,7 @@ class ScrapeEngagement():
                 tweet_summaries['username'] = row['username']
                 tweet_summaries['user_id'] = row['user_id']
                 user_tweet_metrics = pd.concat([user_tweet_metrics, pd.DataFrame([tweet_summaries])])
-                user_tweet_metrics.to_csv(f'./data/{self.user_name}_{followers_or_followings}_tweet_metrics.csv')
+                user_tweet_metrics.to_csv(f'./data/{self.user_name}_interim_{followers_or_followings}_tweet_metrics.csv')
         return user_tweet_metrics
 
 

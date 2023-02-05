@@ -62,7 +62,7 @@ if submitted:
                 )
                 followings_df = followings_df.merge(metrics_df, on='username', how='left')
         st.dataframe(followings_df)
-
+        followings_df.to_csv(f'./data/{username}_followings_df.csv')
         csv = convert_df(followings_df)
         st.download_button(
             "Press to Download",
@@ -83,7 +83,7 @@ if submitted:
                 )
                 followers_df = followers_df.merge(metrics_df, on='username', how='left')
         st.dataframe(followers_df)
-
+        followings_df.to_csv(f'./data/{username}_followers_df.csv')
         csv = convert_df(followers_df)
         st.download_button(
             "Press to Download",
@@ -97,7 +97,7 @@ if submitted:
         with st.spinner(text=f"Scraping `{username}`'s tweets"):
             tweets_df = scraper.scrape_tweets_for_user(last_n_hundred_tweets=2)
         st.dataframe(tweets_df)
-
+        tweets_df.to_csv(f'./data/{username}_tweets_df.csv')
         csv = convert_df(tweets_df)
         st.download_button(
             "Press to Download",
