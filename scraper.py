@@ -105,30 +105,6 @@ def clean_tweet_df(in_df):
     out_df = out_df[out_cols]
     return out_df
 
-def scrape_metrics_for_last_hundred_tweets_for_users(user_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Args:
-        user_df (pd.DataFrame): needs to have a 'user_id' column
-
-    Returns:
-        pd.DataFrame: one row per user w aggregated user metrics
-    """
-    logger.info("------scraping tweet metrics for users")
-    user_tweet_metrics = pd.DataFrame([])
-    for i in tqdm(range(user_df.shape[0])):
-        row = user_df.iloc[i]
-        scraper = Scraper(user_name=row['username'], user_id=row['user_id'])
-        tweets_df = scraper.scrape_tweets_for_user(last_n_hundred_tweets=1)
-        if tweets_df is not None:
-            tweets_df_no_rts = tweets_df[tweets_df.text.str.startswith('RT') == False]
-            tweet_summaries = tweets_df_no_rts[['retweet_count', 'reply_count', 'like_count', 'quote_count', 'impression_count']].mean()
-            tweet_summaries.index = ['average_' + ix for ix in tweet_summaries.index]
-            tweet_summaries['last_n_tweets'] = tweets_df_no_rts.shape[0]
-            tweet_summaries['username'] = row['username']
-            tweet_summaries['user_id'] = row['user_id']
-            user_tweet_metrics = pd.concat([user_tweet_metrics, pd.DataFrame([tweet_summaries])])
-    return user_tweet_metrics
-
 class Scraper():
 
     def __init__(self, user_name, start_time=None, end_time=None, user_id=None) -> None:
@@ -160,8 +136,11 @@ class Scraper():
             else:
                 next_token = hundo_followings["meta"]["next_token"]
                 hundo_followings = self._scrape_100_followings_for_user(next_token)
-                raw_users_followings = raw_users_followings.append(
-                    pd.DataFrame(hundo_followings['data'])
+                raw_users_followings = pd.concat(
+                    [
+                        raw_users_followings,
+                        pd.DataFrame(hundo_followings['data'])
+                    ], axis=0
                 )
         users_followings = clean_df(raw_users_followings)
         users_followings['scraped_at'] = str(datetime.now())
@@ -177,12 +156,16 @@ class Scraper():
             else:
                 next_token = hundo_followers["meta"]["next_token"]
                 hundo_followers = self._scrape_100_followers_for_user(next_token)
-                raw_users_followers = raw_users_followers.append(
-                    pd.DataFrame(hundo_followers['data'])
+                raw_users_followers = pd.concat(
+                    [
+                        raw_users_followers,
+                        pd.DataFrame(hundo_followers['data'])
+                    ], axis=0
                 )
-        users_followers = clean_df(raw_users_followers)
-        users_followers['scraped_at'] = str(datetime.now())
-        users_followers = clean_user_df(users_followers)
+                users_followers = clean_df(raw_users_followers)
+                users_followers['scraped_at'] = str(datetime.now())
+                users_followers = clean_user_df(users_followers)
+                users_followers.to_csv(f'./data/{self.user_name}_users_followers.csv')
         return users_followers
 
     def scrape_tweets_for_user(self, last_n_hundred_tweets=1) -> pd.DataFrame:
@@ -197,8 +180,11 @@ class Scraper():
             else:
                 next_token = hundo_tweets["meta"]["next_token"]
                 hundo_tweets = self._get_100_tweets_from_user(next_token)
-                raw_user_timeline_df = raw_user_timeline_df.append(
-                    pd.DataFrame(hundo_tweets['data'])
+                raw_user_timeline_df = pd.concat(
+                    [
+                        raw_user_timeline_df,
+                        pd.DataFrame(hundo_tweets['data'])
+                    ], axis=0
                 )
         user_timeline_df = clean_df(raw_user_timeline_df)
         user_timeline_df['row_created_at'] = str(datetime.now())
@@ -233,7 +219,39 @@ class Scraper():
         url = f"https://api.twitter.com/2/users/{self.user_id}/following"
         json_response = connect_to_endpoint(url, params)
         return json_response
-    
+
+
+class ScrapeEngagement():
+
+    def __init__(self, username) -> None:
+        self.user_name = username
+
+    def scrape_metrics_for_last_hundred_tweets_for_users(self, user_df: pd.DataFrame, followers_or_followings='followers') -> pd.DataFrame:
+        """
+        Args:
+            user_df (pd.DataFrame): needs to have a 'user_id' column
+
+        Returns:
+            pd.DataFrame: one row per user w aggregated user metrics
+        """
+        logger.info("------scraping tweet metrics for users")
+        user_tweet_metrics = pd.DataFrame([])
+        for i in tqdm(range(user_df.shape[0])):
+            row = user_df.iloc[i]
+            scraper = Scraper(user_name=row['username'], user_id=row['user_id'])
+            tweets_df = scraper.scrape_tweets_for_user(last_n_hundred_tweets=1)
+            if tweets_df is not None:
+                tweets_df_no_rts = tweets_df[tweets_df.text.str.startswith('RT') == False]
+                tweet_summaries = tweets_df_no_rts[['retweet_count', 'reply_count', 'like_count', 'quote_count', 'impression_count']].mean()
+                tweet_summaries.index = ['average_' + ix for ix in tweet_summaries.index]
+                tweet_summaries['last_n_tweets'] = tweets_df_no_rts.shape[0]
+                tweet_summaries['username'] = row['username']
+                tweet_summaries['user_id'] = row['user_id']
+                user_tweet_metrics = pd.concat([user_tweet_metrics, pd.DataFrame([tweet_summaries])])
+                user_tweet_metrics.to_csv(f'./data/{self.user_name}_{followers_or_followings}_tweet_metrics.csv')
+        return user_tweet_metrics
+
+
 if __name__ == '__main__':
     scraper = Scraper('parker_brydon')
     user_meta_data = scraper.scrape_user_meta_data()

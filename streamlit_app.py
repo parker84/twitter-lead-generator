@@ -1,6 +1,6 @@
 import streamlit as st
 from PIL import Image
-from scraper import Scraper, scrape_metrics_for_last_hundred_tweets_for_users
+from scraper import Scraper, ScrapeEngagement
 
 # ----helpers
 @st.experimental_memo
@@ -48,6 +48,7 @@ if submitted:
     )
 
     scraper = Scraper(username)
+    engagement_scraper = ScrapeEngagement(username)
 
     if get_following:
         st.markdown('## 🔭 Following')
@@ -55,8 +56,9 @@ if submitted:
             followings_df = scraper.scrape_followings_for_user()
         if get_engagement_metrics:
             with st.spinner(text=f"Scraping engagement metrics for followings, with follower counts >= {min_follower_count_to_get_engagement_metrics}"):
-                metrics_df = scrape_metrics_for_last_hundred_tweets_for_users(
-                    followings_df[followings_df.followers_count >= min_follower_count_to_get_engagement_metrics]
+                metrics_df = engagement_scraper.scrape_metrics_for_last_hundred_tweets_for_users(
+                    followings_df[followings_df.followers_count >= min_follower_count_to_get_engagement_metrics],
+                    followers_or_followings='followings'
                 )
                 followings_df = followings_df.merge(metrics_df, on='username', how='left')
         st.dataframe(followings_df)
@@ -75,8 +77,9 @@ if submitted:
             followers_df = scraper.scrape_followers_for_user()
         if get_engagement_metrics:
             with st.spinner(text=f"Scraping engagement metrics_df for followers, with follower counts >= {min_follower_count_to_get_engagement_metrics}"):
-                metrics_df = scrape_metrics_for_last_hundred_tweets_for_users(
-                    followers_df[followers_df.followers_count >= min_follower_count_to_get_engagement_metrics]
+                metrics_df = engagement_scraper.scrape_metrics_for_last_hundred_tweets_for_users(
+                    followers_df[followers_df.followers_count >= min_follower_count_to_get_engagement_metrics],
+                    followers_or_followings='followers'
                 )
                 followers_df = followers_df.merge(metrics_df, on='username', how='left')
         st.dataframe(followers_df)
