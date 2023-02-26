@@ -150,7 +150,9 @@ class Scraper():
     def scrape_followers_for_user(self):
         hundo_followers = self._scrape_100_followers_for_user()
         raw_users_followers = pd.DataFrame(hundo_followers['data'])
+        i = 1
         while True:
+            logger.info(f'scrape_followers_for_user, page = {i}')
             if "next_token" not in hundo_followers["meta"]:
                 break
             else:
@@ -166,6 +168,7 @@ class Scraper():
                 users_followers['scraped_at'] = str(datetime.now())
                 users_followers = clean_user_df(users_followers)
                 users_followers.to_csv(f'./data/{self.user_name}_interim_users_followers.csv')
+                i += 1
         return users_followers
 
     def scrape_tweets_for_user(self, last_n_hundred_tweets=1) -> pd.DataFrame:
